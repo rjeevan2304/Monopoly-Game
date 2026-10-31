@@ -69,6 +69,124 @@ class Button:
     def check_hover(self, pos):
         self.is_hovered = self.rect.collidepoint(pos)
 
+class ToggleSwitch:
+    def __init__(self, x, y, w, h, label, active=True, on_color=(30, 144, 255), action_id=""):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.label = label
+        self.active = active
+        self.on_color = on_color
+        self.off_color = (95, 100, 108)  # Grayscale
+        self.action_id = action_id
+        self.is_hovered = False
+
+    def check_hover(self, pos):
+        self.is_hovered = self.rect.collidepoint(pos)
+
+    def toggle(self):
+        self.active = not self.active
+        return self.active
+
+    def draw(self, screen, font, small_font):
+        bg_col = (65, 76, 90) if self.is_hovered else (52, 62, 74)
+        pygame.draw.rect(screen, (30, 30, 30), (self.rect.x + 2, self.rect.y + 3, self.rect.w, self.rect.h), border_radius=8)
+        pygame.draw.rect(screen, bg_col, self.rect, border_radius=8)
+        pygame.draw.rect(screen, (80, 92, 105), self.rect, 1, border_radius=8)
+        
+        # Label
+        lbl = small_font.render(self.label, True, C_TEXT_LIGHT)
+        screen.blit(lbl, (self.rect.x + 16, self.rect.y + (self.rect.h - lbl.get_height()) // 2))
+        
+        # Switch Pill
+        sw_w = 70
+        sw_h = 28
+        sw_x = self.rect.right - sw_w - 16
+        sw_y = self.rect.y + (self.rect.h - sw_h) // 2
+        sw_rect = pygame.Rect(sw_x, sw_y, sw_w, sw_h)
+        
+        track_col = self.on_color if self.active else self.off_color
+        pygame.draw.rect(screen, track_col, sw_rect, border_radius=sw_h // 2)
+        
+        knob_r = (sw_h - 6) // 2
+        if self.active:
+            knob_center = (sw_rect.right - knob_r - 3, sw_rect.centery)
+            txt = small_font.render("ON", True, WHITE)
+            screen.blit(txt, (sw_rect.x + 9, sw_rect.centery - txt.get_height() // 2))
+        else:
+            knob_center = (sw_rect.x + knob_r + 3, sw_rect.centery)
+            txt = small_font.render("OFF", True, (215, 215, 215))
+            screen.blit(txt, (sw_rect.right - txt.get_width() - 8, sw_rect.centery - txt.get_height() // 2))
+            
+        pygame.draw.circle(screen, WHITE, knob_center, knob_r)
+        pygame.draw.circle(screen, (50, 50, 50), knob_center, knob_r, 1)
+
+class Dropdown:
+    def __init__(self, x, y, w, h, label, options, selected_value, action_id=""):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.label = label
+        self.options = options
+        self.selected_value = selected_value
+        self.action_id = action_id
+        self.is_open = False
+        self.is_hovered = False
+
+    def get_option_rects(self):
+        rects = []
+        for idx, opt in enumerate(self.options):
+            rects.append((opt, pygame.Rect(self.rect.x, self.rect.bottom + idx * self.rect.h, self.rect.w, self.rect.h)))
+        return rects
+
+    def check_hover(self, pos):
+        self.is_hovered = self.rect.collidepoint(pos)
+
+    def handle_click(self, pos):
+        if self.rect.collidepoint(pos):
+            self.is_open = not self.is_open
+            return True, None
+        elif self.is_open:
+            for opt, r in self.get_option_rects():
+                if r.collidepoint(pos):
+                    self.selected_value = opt
+                    self.is_open = False
+                    return True, opt
+            self.is_open = False
+            return True, None
+        return False, None
+
+    def draw_closed(self, screen, font, small_font):
+        bg_col = (65, 76, 90) if self.is_hovered else (52, 62, 74)
+        pygame.draw.rect(screen, (30, 30, 30), (self.rect.x + 2, self.rect.y + 3, self.rect.w, self.rect.h), border_radius=8)
+        pygame.draw.rect(screen, bg_col, self.rect, border_radius=8)
+        pygame.draw.rect(screen, C_ACCENT if self.is_open else (80, 92, 105), self.rect, 2 if self.is_open else 1, border_radius=8)
+        
+        lbl = small_font.render(self.label, True, C_TEXT_LIGHT)
+        screen.blit(lbl, (self.rect.x + 16, self.rect.y + (self.rect.h - lbl.get_height()) // 2))
+        
+        val_str = f"Rs {self.selected_value}  {'▲' if self.is_open else '▼'}"
+        val = small_font.render(val_str, True, C_HIGHLIGHT)
+        screen.blit(val, (self.rect.right - val.get_width() - 16, self.rect.y + (self.rect.h - val.get_height()) // 2))
+
+    def draw_open_menu(self, screen, font, mouse_pos):
+        if not self.is_open:
+            return
+        total_h = len(self.options) * self.rect.h
+        pygame.draw.rect(screen, (20, 20, 20), (self.rect.x + 2, self.rect.bottom + 2, self.rect.w, total_h), border_radius=8)
+        
+        for opt, r in self.get_option_rects():
+            opt_hover = r.collidepoint(mouse_pos)
+            if opt_hover:
+                opt_bg = (40, 110, 180)
+            elif opt == self.selected_value:
+                opt_bg = (55, 75, 100)
+            else:
+                opt_bg = (38, 48, 60)
+                
+            pygame.draw.rect(screen, opt_bg, r)
+            pygame.draw.rect(screen, (75, 90, 105), r, 1)
+            
+            col = C_HIGHLIGHT if opt == self.selected_value else WHITE
+            txt = font.render(f"Rs {opt}", True, col)
+            screen.blit(txt, (r.x + (r.w - txt.get_width()) // 2, r.y + (r.h - txt.get_height()) // 2))
+
 class Space:
     def __init__(self, name, type, group=None, price=0, rent=0, house_cost=0):
         self.name = name
@@ -129,10 +247,19 @@ class GameEngine:
         
         # Settings
         self.s_money = 1500
+        self.s_players = 4
         self.s_loans = True
         self.s_mortgage = True
         self.s_build = True
         self.s_vacation = True
+
+    def sync_players(self):
+        colors = [(220, 20, 60), (30, 144, 255), (34, 139, 34), (255, 215, 0)]
+        existing_names = [p.name for p in self.players]
+        self.players = []
+        for i in range(self.s_players):
+            name = existing_names[i] if (i < len(existing_names) and existing_names[i]) else f"Player {i+1}"
+            self.players.append(Player(name, colors[i % len(colors)], self.s_money))
 
     def log_msg(self, text):
         self.log.append(text)
@@ -474,18 +601,34 @@ def draw_board(screen, engine, font, small_font):
             c = COLORS.get(s.group, (200,200,200))
             if s.type == "Property":
                 # Orientation of strip
-                if 0 <= i <= 10: pygame.draw.rect(screen, c, (rx, ry, cell_w, 20)) # Top of cell (which is actually bottom of board?)
+                if 0 <= i <= 10: pygame.draw.rect(screen, c, (rx, ry, cell_w, 20))
                 elif 11 <= i <= 20: pygame.draw.rect(screen, c, (rx+cell_w-20, ry, 20, cell_w)) 
                 elif 21 <= i <= 30: pygame.draw.rect(screen, c, (rx, ry+cell_w-20, cell_w, 20))
                 else: pygame.draw.rect(screen, c, (rx, ry, 20, cell_w))
         
-        # Text
-        lines = s.name.split(" ")
-        ty = ry + 25
-        for line in lines:
-            txt = small_font.render(line, True, BLACK)
-            screen.blit(txt, (rx + (cell_w - txt.get_width())/2, ty))
-            ty += 12
+        # Space Text / Vacation Box Pot
+        if s.type == "Vacation":
+            txt = small_font.render("VACATION", True, (0, 110, 120))
+            screen.blit(txt, (rx + (cell_w - txt.get_width()) / 2, ry + 10))
+            
+            # Dedicated pot container inside the vacation space
+            pot_badge = pygame.Rect(rx + 4, ry + 28, cell_w - 8, cell_w - 34)
+            pygame.draw.rect(screen, (220, 245, 245), pot_badge, border_radius=4)
+            pygame.draw.rect(screen, (0, 160, 170), pot_badge, 1, border_radius=4)
+            
+            p_lbl = small_font.render("POT", True, (70, 90, 100))
+            screen.blit(p_lbl, (rx + (cell_w - p_lbl.get_width()) / 2, ry + 30))
+            
+            amt_col = (200, 40, 40) if engine.vacation_pot > 0 else (100, 100, 100)
+            p_amt = small_font.render(f"Rs {engine.vacation_pot}", True, amt_col)
+            screen.blit(p_amt, (rx + (cell_w - p_amt.get_width()) / 2, ry + 44))
+        else:
+            lines = s.name.split(" ")
+            ty = ry + 25
+            for line in lines:
+                txt = small_font.render(line, True, BLACK)
+                screen.blit(txt, (rx + (cell_w - txt.get_width())/2, ty))
+                ty += 12
 
         # Owner Dot & Houses
         if s.owner:
@@ -501,45 +644,57 @@ def draw_board(screen, engine, font, small_font):
             
     # Center Logo
     title = font.render("MONOPOLY", True, C_PANEL)
-    screen.blit(title, (CENTER_X - title.get_width()//2, CENTER_X - 40))
-    pot = small_font.render(f"Vacation Pot: Rs {engine.vacation_pot}", True, C_ACCENT)
-    screen.blit(pot, (CENTER_X - pot.get_width()//2, CENTER_X + 20))
+    screen.blit(title, (CENTER_X - title.get_width()//2, CENTER_X - 25))
+    edition = small_font.render("International Edition", True, (130, 140, 150))
+    screen.blit(edition, (CENTER_X - edition.get_width()//2, CENTER_X + 15))
 
-def draw_ui(screen, engine, font, small_font, buttons):
+def draw_ui(screen, engine, font, small_font, buttons, selected_player_idx=0):
     # Panel Background
     pygame.draw.rect(screen, C_PANEL, (BOARD_SIZE, 0, PANEL_WIDTH, SCREEN_HEIGHT))
-    
+    bx = BOARD_SIZE + 45
+
     # State: SETTINGS
     if engine.state == "SETTINGS":
         t = font.render("GAME SETTINGS", True, C_HIGHLIGHT)
-        screen.blit(t, (BOARD_SIZE + 50, 40))
-        sub = small_font.render("Click options to customize rules:", True, C_TEXT_LIGHT)
-        screen.blit(sub, (BOARD_SIZE + 50, 75))
+        screen.blit(t, (bx, 30))
+        sub = small_font.render("Configure player setup, money, and rules:", True, C_TEXT_LIGHT)
+        screen.blit(sub, (bx, 64))
+        
+        lbl_p = small_font.render("NUMBER OF PLAYERS", True, C_HIGHLIGHT)
+        screen.blit(lbl_p, (bx, 94))
         return
 
     # State: LOBBY
     if engine.state == "LOBBY":
         t = font.render("LOBBY", True, C_HIGHLIGHT)
-        screen.blit(t, (BOARD_SIZE + 50, 40))
-        sub = small_font.render("Add 2-4 players to start the game:", True, C_TEXT_LIGHT)
-        screen.blit(sub, (BOARD_SIZE + 50, 75))
-        y = 105
-        for p in engine.players:
-            pygame.draw.circle(screen, p.color, (BOARD_SIZE + 50, y + 8), 7)
-            p_txt = small_font.render(f"{p.name} (Rs {p.money})", True, C_TEXT_LIGHT)
-            screen.blit(p_txt, (BOARD_SIZE + 65, y))
-            y += 26
+        screen.blit(t, (bx, 30))
+        sub = small_font.render(f"{len(engine.players)} Players configured. Click START or customize names below:", True, C_TEXT_LIGHT)
+        screen.blit(sub, (bx, 64))
+        y = 98
+        for i, p in enumerate(engine.players):
+            card_rect = pygame.Rect(bx, y, 440, 40)
+            is_sel = (i == selected_player_idx)
+            bg_col = (65, 82, 102) if is_sel else (50, 60, 72)
+            pygame.draw.rect(screen, bg_col, card_rect, border_radius=6)
+            if is_sel:
+                pygame.draw.rect(screen, C_HIGHLIGHT, card_rect, 2, border_radius=6)
+            pygame.draw.circle(screen, p.color, (bx + 20, y + 20), 8)
+            p_txt = font.render(p.name, True, WHITE)
+            screen.blit(p_txt, (bx + 38, y + 6))
+            bal_txt = small_font.render(f"Rs {p.money}", True, (80, 200, 100))
+            screen.blit(bal_txt, (card_rect.right - bal_txt.get_width() - 15, y + 12))
+            y += 46
         return
 
     # State: GAME_OVER
     if engine.state == "GAME_OVER":
         t = font.render("GAME OVER", True, C_ERROR)
-        screen.blit(t, (BOARD_SIZE + 50, 40))
+        screen.blit(t, (bx, 40))
         if engine.winner:
             w_txt = font.render(f"{engine.winner.name} WINS!", True, C_HIGHLIGHT)
-            screen.blit(w_txt, (BOARD_SIZE + 50, 90))
+            screen.blit(w_txt, (bx, 90))
             bal_txt = small_font.render(f"Final Balance: Rs {engine.winner.money}", True, C_TEXT_LIGHT)
-            screen.blit(bal_txt, (BOARD_SIZE + 50, 130))
+            screen.blit(bal_txt, (bx, 130))
         return
 
     # State: GAME
@@ -585,45 +740,53 @@ async def main():
     pygame.display.set_caption("Monopoly Game")
     clock = pygame.time.Clock()
     
-    font = pygame.font.SysFont('Arial', 28, bold=True)
+    font = pygame.font.SysFont('Arial', 24, bold=True)
     small_font = pygame.font.SysFont('Arial', 14)
-    btn_font = pygame.font.SysFont('Arial', 20, bold=True)
+    btn_font = pygame.font.SysFont('Arial', 18, bold=True)
     
     engine = GameEngine()
     input_text = ""
+    selected_player_idx = 0
     money_options = [1000, 1500, 2000, 2500]
 
-    def add_player():
-        nonlocal input_text
-        name = input_text.strip()
-        if name and len(engine.players) < 4:
-            colors = [(220, 20, 60), (30, 144, 255), (34, 139, 34), (255, 215, 0)]
-            c = colors[len(engine.players) % len(colors)]
-            engine.players.append(Player(name, c, engine.s_money))
-            input_text = ""
-    
-    # Button Definitions
-    bx = BOARD_SIZE + 40
+    bx = BOARD_SIZE + 45
+    bw = 440
+
+    # 1. Player Count Selector Buttons (2, 3, 4 players)
+    btns_player_count = [
+        Button(bx, 118, 140, 42, "2 Players", (80, 85, 95), (100, 105, 115), "P_2"),
+        Button(bx + 150, 118, 140, 42, "3 Players", (80, 85, 95), (100, 105, 115), "P_3"),
+        Button(bx + 300, 118, 140, 42, "4 Players", (80, 85, 95), (100, 105, 115), "P_4"),
+    ]
+
+    # 2. Starting Money Dropdown
+    dd_money = Dropdown(bx, 180, bw, 46, "Starting Money", money_options, engine.s_money, "S_MON")
+
+    # 3. Settings Toggles (Red / Blue when ON, Grayscaled when OFF)
+    toggles_settings = [
+        ToggleSwitch(bx, 245, bw, 46, "Bank Loans (15% Interest)", active=engine.s_loans, on_color=(220, 50, 60), action_id="S_LOA"),
+        ToggleSwitch(bx, 305, bw, 46, "Vacation Pot Jackpot", active=engine.s_vacation, on_color=(30, 144, 255), action_id="S_VAC"),
+        ToggleSwitch(bx, 365, bw, 46, "House & Hotel Building", active=engine.s_build, on_color=(30, 144, 255), action_id="S_BLD"),
+    ]
+
+    # 4. Settings to Lobby Button
+    btn_to_lobby = Button(bx, 435, bw, 52, "GO TO LOBBY", C_SUCCESS, (80, 205, 100), "TO_LOBBY")
+
+    # 5. Lobby Buttons
+    btn_set_name = Button(bx + 320, 310, 120, 42, "SET NAME", C_ACCENT, (100, 160, 220), "SET_NAME")
+    btn_lobby_start = Button(bx, 370, bw, 52, "START GAME", C_SUCCESS, (80, 205, 100), "START_G")
+    btn_lobby_back = Button(bx, 435, bw, 42, "← BACK TO SETTINGS", (80, 85, 95), (100, 105, 115), "BACK_SETTINGS")
+
+    # 6. Gameplay Sidebar Buttons
     btns_game = [
-        Button(bx, 650, 120, 50, "ROLL", C_SUCCESS, (80,200,100), "ROLL"),
-        Button(bx+140, 650, 120, 50, "BUY", C_ACCENT, (100,160,220), "BUY"),
-        Button(bx, 715, 260, 45, "END TURN", C_ERROR, (240,80,80), "END"),
-        Button(bx, 775, 120, 40, "LOAN", C_HIGHLIGHT, (255,235,100), "LOAN"),
-        Button(bx+140, 775, 120, 40, "BUILD", (70,130,180), (90,150,200), "BUILD"),
-    ]
-    
-    btn_lobby_add = Button(bx+170, 230, 90, 40, "ADD", C_SUCCESS, (80,200,100), "ADD_P")
-    btn_lobby_start = Button(bx, 290, 260, 50, "START GAME", C_ACCENT, (100,160,220), "START_G")
-
-    btns_settings = [
-        Button(bx, 110, 260, 40, f"START MONEY: {engine.s_money}", (100,100,100), (120,120,120), "S_MON"),
-        Button(bx, 165, 260, 40, f"LOANS: {'ON' if engine.s_loans else 'OFF'}", (100,100,100), (120,120,120), "S_LOA"),
-        Button(bx, 220, 260, 40, f"VACATION POT: {'ON' if engine.s_vacation else 'OFF'}", (100,100,100), (120,120,120), "S_VAC"),
-        Button(bx, 275, 260, 40, f"HOUSE BUILDING: {'ON' if engine.s_build else 'OFF'}", (100,100,100), (120,120,120), "S_BLD"),
-        Button(bx, 350, 260, 50, "GO TO LOBBY", C_SUCCESS, (80,200,80), "TO_LOBBY")
+        Button(bx, 650, 130, 48, "ROLL", C_SUCCESS, (80,200,100), "ROLL"),
+        Button(bx+155, 650, 130, 48, "BUY", C_ACCENT, (100,160,220), "BUY"),
+        Button(bx+310, 650, 130, 48, "BUILD", (70,130,180), (90,150,200), "BUILD"),
+        Button(bx, 715, 210, 46, "END TURN", C_ERROR, (240,80,80), "END"),
+        Button(bx+230, 715, 210, 46, "LOAN (+500)", C_HIGHLIGHT, (255,235,100), "LOAN"),
     ]
 
-    btn_play_again = Button(bx, 180, 260, 50, "PLAY AGAIN", C_SUCCESS, (80, 200, 80), "PLAY_AGAIN")
+    btn_play_again = Button(bx, 180, bw, 50, "PLAY AGAIN", C_SUCCESS, (80, 200, 80), "PLAY_AGAIN")
 
     running = True
     while running:
@@ -635,47 +798,83 @@ async def main():
             if e.type == pygame.QUIT:
                 running = False
             
-            # Text Input (Lobby)
+            # Text Input (Lobby rename)
             if engine.state == "LOBBY" and e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_BACKSPACE:
                     input_text = input_text[:-1]
                 elif e.key == pygame.K_RETURN:
-                    add_player()
+                    if input_text.strip() and engine.players:
+                        engine.players[selected_player_idx].name = input_text.strip()
+                        selected_player_idx = (selected_player_idx + 1) % len(engine.players)
+                        input_text = engine.players[selected_player_idx].name
                 elif len(input_text) < 14 and e.unicode.isprintable():
                     input_text += e.unicode
 
             # Clicks
             if e.type == pygame.MOUSEBUTTONDOWN:
                 if engine.state == "SETTINGS":
-                    for b in btns_settings:
-                        if b.rect.collidepoint(e.pos):
-                            if b.action_id == "TO_LOBBY":
-                                engine.state = "LOBBY"
-                            elif b.action_id == "S_MON":
-                                m_idx = (money_options.index(engine.s_money) + 1) % len(money_options)
-                                engine.s_money = money_options[m_idx]
-                                b.text = f"START MONEY: {engine.s_money}"
-                            elif b.action_id == "S_LOA":
-                                engine.s_loans = not engine.s_loans
-                                b.text = f"LOANS: {'ON' if engine.s_loans else 'OFF'}"
-                            elif b.action_id == "S_VAC":
-                                engine.s_vacation = not engine.s_vacation
-                                b.text = f"VACATION POT: {'ON' if engine.s_vacation else 'OFF'}"
-                            elif b.action_id == "S_BLD":
-                                engine.s_build = not engine.s_build
-                                b.text = f"HOUSE BUILDING: {'ON' if engine.s_build else 'OFF'}"
+                    # Check dropdown first to handle click priority
+                    handled, new_money = dd_money.handle_click(e.pos)
+                    if handled:
+                        if new_money is not None:
+                            engine.s_money = new_money
+                            for p in engine.players:
+                                p.money = engine.s_money
+                    else:
+                        # Player count buttons
+                        for b in btns_player_count:
+                            if b.rect.collidepoint(e.pos):
+                                count = int(b.action_id.split("_")[1])
+                                engine.s_players = count
+                        
+                        # Toggles
+                        for t in toggles_settings:
+                            if t.rect.collidepoint(e.pos):
+                                is_on = t.toggle()
+                                if t.action_id == "S_LOA":
+                                    engine.s_loans = is_on
+                                elif t.action_id == "S_VAC":
+                                    engine.s_vacation = is_on
+                                elif t.action_id == "S_BLD":
+                                    engine.s_build = is_on
+                                    
+                        # Go to lobby button
+                        if btn_to_lobby.rect.collidepoint(e.pos):
+                            engine.sync_players()
+                            selected_player_idx = 0
+                            input_text = engine.players[0].name if engine.players else ""
+                            engine.state = "LOBBY"
                 
                 elif engine.state == "LOBBY":
-                    if btn_lobby_add.rect.collidepoint(e.pos):
-                        add_player()
+                    if btn_lobby_back.rect.collidepoint(e.pos):
+                        engine.state = "SETTINGS"
                     elif btn_lobby_start.rect.collidepoint(e.pos) and len(engine.players) >= 2:
                         engine.state = "IDLE"
-                        engine.log_msg(f"Game started! {engine.players[0].name}'s Turn")
+                        engine.log_msg(f"Game started with {len(engine.players)} players! {engine.players[0].name}'s Turn")
+                    elif btn_set_name.rect.collidepoint(e.pos):
+                        if input_text.strip() and engine.players:
+                            engine.players[selected_player_idx].name = input_text.strip()
+                            selected_player_idx = (selected_player_idx + 1) % len(engine.players)
+                            input_text = engine.players[selected_player_idx].name
+                    else:
+                        # Check clicking on player card in lobby to select for editing
+                        y_chk = 98
+                        for idx, p in enumerate(engine.players):
+                            c_rect = pygame.Rect(bx, y_chk, bw, 40)
+                            if c_rect.collidepoint(e.pos):
+                                selected_player_idx = idx
+                                input_text = p.name
+                            y_chk += 46
                 
                 elif engine.state == "GAME_OVER":
                     if btn_play_again.rect.collidepoint(e.pos):
                         engine = GameEngine()
                         input_text = ""
+                        selected_player_idx = 0
+                        dd_money.selected_value = engine.s_money
+                        toggles_settings[0].active = engine.s_loans
+                        toggles_settings[1].active = engine.s_vacation
+                        toggles_settings[2].active = engine.s_build
                 
                 elif engine.state in ["IDLE", "ACTION"]:
                     for b in btns_game:
@@ -718,32 +917,55 @@ async def main():
                 pygame.draw.circle(screen, BLACK, (int(cx+off), int(cy+off)), 10)
                 pygame.draw.circle(screen, p.color, (int(cx+off), int(cy+off)), 8)
 
-        draw_ui(screen, engine, font, small_font, [])
+        draw_ui(screen, engine, font, small_font, [], selected_player_idx)
 
-        # Draw Contextual Buttons
+        # Draw Contextual Controls
         if engine.state == "SETTINGS":
-            for b in btns_settings:
+            # 1. Player Count Buttons
+            for b in btns_player_count:
+                count = int(b.action_id.split("_")[1])
+                is_sel = (engine.s_players == count)
+                b.color = (30, 144, 255) if is_sel else (80, 85, 95)
+                b.hover_color = (70, 170, 255) if is_sel else (100, 105, 115)
                 b.check_hover(mouse_pos)
                 b.draw(screen, btn_font)
+                
+            # 2. Closed Dropdown
+            dd_money.check_hover(mouse_pos)
+            dd_money.draw_closed(screen, font, small_font)
+            
+            # 3. Toggle Switches
+            for t in toggles_settings:
+                t.check_hover(mouse_pos)
+                t.draw(screen, font, small_font)
+                
+            # 4. Go to Lobby Button
+            btn_to_lobby.check_hover(mouse_pos)
+            btn_to_lobby.draw(screen, btn_font)
+            
+            # 5. Open Dropdown Options list (drawn on top of all other widgets)
+            dd_money.draw_open_menu(screen, font, mouse_pos)
         
         elif engine.state == "LOBBY":
-            # Input Box
-            input_rect = pygame.Rect(bx, 230, 160, 40)
+            # Rename Input Box
+            input_rect = pygame.Rect(bx, 310, 310, 42)
             pygame.draw.rect(screen, WHITE, input_rect, border_radius=6)
             pygame.draw.rect(screen, C_ACCENT, input_rect, 2, border_radius=6)
             
             if input_text:
-                txt_surf = small_font.render(input_text, True, BLACK)
+                txt_surf = font.render(input_text, True, BLACK)
             else:
-                txt_surf = small_font.render("Player name...", True, (160, 160, 160))
-            screen.blit(txt_surf, (bx + 10, 242))
+                txt_surf = small_font.render(f"Name for Player {selected_player_idx + 1}...", True, (160, 160, 160))
+            screen.blit(txt_surf, (bx + 12, 310 + (42 - txt_surf.get_height()) // 2))
             
-            btn_lobby_add.check_hover(mouse_pos)
-            btn_lobby_add.draw(screen, btn_font)
+            btn_set_name.check_hover(mouse_pos)
+            btn_set_name.draw(screen, btn_font)
             
-            if len(engine.players) >= 2:
-                btn_lobby_start.check_hover(mouse_pos)
-                btn_lobby_start.draw(screen, btn_font)
+            btn_lobby_start.check_hover(mouse_pos)
+            btn_lobby_start.draw(screen, btn_font)
+            
+            btn_lobby_back.check_hover(mouse_pos)
+            btn_lobby_back.draw(screen, btn_font)
                 
         elif engine.state == "GAME_OVER":
             btn_play_again.check_hover(mouse_pos)
