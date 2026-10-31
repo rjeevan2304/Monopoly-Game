@@ -1,17 +1,22 @@
 # Monopoly Game
 
-A modern 2D digital board game built with Python and Pygame, featuring support for desktop play as well as browser execution via WebAssembly / Pygbag.
+A modern digital board game built with Python and Pygame featuring **3D graphics and animations**: 3D tumbling dice with bounce physics, 3D jumping pawn figurines with dynamic altitude and grounded shadows, and 3D buildings (houses & hotels). Supports desktop play as well as browser execution via WebAssembly / Pygbag.
 
 ---
 
 ## Features
 
+- **3D Physics & Visuals**:
+  - **3D Tumbling Dice**: Authentic isometric 3D dice cubes that roll, tumble, bounce with gravity and restitution, and settle on the rolled values.
+  - **3D Hopping Pawns**: When a player rolls or moves, their 3D pawn figurine jumps up into the air along a parabolic arc ($z$-axis elevation) from tile to tile, casting a dynamic soft drop shadow on the board below and landing with an impact squash.
+  - **3D Miniature Buildings**: Properties display cute isometric 3D houses (1–4 green houses with pitched roofs and chimneys) and 3D red hotels with window details.
+  - **3D Pawn Figurines**: Modelled with circular pedestals, conical shaded bodies, collar rings, and spherical glossy heads with specular highlights.
 - **Classic & Modern Board Mechanics**:
   - 40 spaces including international city groups (Korea, Spain, Malaysia, South Africa, Russia, USA, India, Japan), Central Stations, Taxes, and Special card spaces.
   - Dedicated **Vacation Pot** badge displayed directly inside the Vacation corner tile ($Rs\text{ pot}$).
   - Progressive Station rent scaling ($25 \times 2^{n-1}$ for $n$ stations owned).
   - Monopoly group bonuses (doubled base rent for complete unbuilt color groups).
-  - House and Hotel building progression up to 5 tiers per property with visual indicators on the board (`1H`–`4H`, `HOTEL`).
+  - House and Hotel building progression up to 5 tiers per property.
 - **Interactive Settings & House Rules**:
   - **Player Count Selector**: Quickly choose between 2, 3, or 4 players before entering the lobby.
   - **Starting Money Dropdown**: Selectable initial funds (Rs 1,000, Rs 1,500, Rs 2,000, Rs 2,500).

@@ -44,6 +44,364 @@ COLORS = {
     "Jump": (100, 0, 100)
 }
 
+# --- 3D MATH & RENDERING ENGINE ---
+
+def rotate_pt(x, y, z, ax, ay, az):
+    rad_x, rad_y, rad_z = math.radians(ax), math.radians(ay), math.radians(az)
+    # Rotate around X
+    y1 = y * math.cos(rad_x) - z * math.sin(rad_x)
+    z1 = y * math.sin(rad_x) + z * math.cos(rad_x)
+    # Rotate around Y
+    x2 = x * math.cos(rad_y) + z1 * math.sin(rad_y)
+    z2 = -x * math.sin(rad_y) + z1 * math.cos(rad_y)
+    # Rotate around Z
+    x3 = x2 * math.cos(rad_z) - y1 * math.sin(rad_z)
+    y3 = x2 * math.sin(rad_z) + y1 * math.cos(rad_z)
+    return x3, y3, z2
+
+PIP_PATTERNS = {
+    1: [(0, 0)],
+    2: [(-0.5, -0.5), (0.5, 0.5)],
+    3: [(-0.5, -0.5), (0, 0), (0.5, 0.5)],
+    4: [(-0.5, -0.5), (0.5, -0.5), (-0.5, 0.5), (0.5, 0.5)],
+    5: [(-0.5, -0.5), (0.5, -0.5), (0, 0), (-0.5, 0.5), (0.5, 0.5)],
+    6: [(-0.5, -0.6), (-0.5, 0), (-0.5, 0.6), (0.5, -0.6), (0.5, 0), (0.5, 0.6)],
+}
+
+DICE_FACES = [
+    {'val': 1, 'origin': (0, 0, 1), 'u': (1, 0, 0), 'v': (0, 1, 0), 'norm': (0, 0, 1)},
+    {'val': 6, 'origin': (0, 0, -1), 'u': (-1, 0, 0), 'v': (0, 1, 0), 'norm': (0, 0, -1)},
+    {'val': 2, 'origin': (0, 1, 0), 'u': (1, 0, 0), 'v': (0, 0, -1), 'norm': (0, 1, 0)},
+    {'val': 5, 'origin': (0, -1, 0), 'u': (-1, 0, 0), 'v': (0, 0, -1), 'norm': (0, -1, 0)},
+    {'val': 3, 'origin': (1, 0, 0), 'u': (0, 1, 0), 'v': (0, 0, -1), 'norm': (1, 0, 0)},
+    {'val': 4, 'origin': (-1, 0, 0), 'u': (0, -1, 0), 'v': (0, 0, -1), 'norm': (-1, 0, 0)},
+]
+
+TARGET_DICE_ANGLES = {
+    1: (20, -25, 0),
+    2: (110, -25, 0),
+    3: (20, -115, 0),
+    4: (20, 65, 0),
+    5: (-70, -25, 0),
+    6: (20, 155, 0),
+}
+
+def draw_die_shadow(surface, cx, cy, z, size=52):
+    scale = 1.0 + (z / 90.0) * 0.45
+    alpha = max(18, int(110 * max(0.0, 1.0 - z / 130.0)))
+    sw = int(size * 0.62 * scale)
+    sh = int(size * 0.32 * scale)
+    s_surf = pygame.Surface((sw * 2 + 4, sh * 2 + 4), pygame.SRCALPHA)
+    pygame.draw.ellipse(s_surf, (0, 0, 0, alpha), (2, 2, sw * 2, sh * 2))
+    surface.blit(s_surf, (cx - sw - 2, cy - sh // 2 - 2))
+
+def draw_3d_die(surface, cx, cy, size, ax, ay, az):
+    s = size / 2.0
+    lx, ly, lz = -0.4, -0.6, 0.7
+    l_mag = math.sqrt(lx*lx + ly*ly + lz*lz)
+    lx, ly, lz = lx/l_mag, ly/l_mag, lz/l_mag
+    transformed_faces = []
+    for f in DICE_FACES:
+        nx, ny, nz = rotate_pt(*f['norm'], ax, ay, az)
+        if nz <= 0:
+            continue
+        ox, oy, oz = f['origin']
+        ux, uy, uz = f['u']
+        vx, vy, vz = f['v']
+        corners_3d = [
+            (ox - ux - vx, oy - uy - vy, oz - uz - vz),
+            (ox + ux - vx, oy + uy - vy, oz + uz - vz),
+            (ox + ux + vx, oy + uy + vy, oz + uz + vz),
+            (ox - ux + vx, oy - uy + vy, oz - uz + vz),
+        ]
+        corners_rot = [rotate_pt(px*s, py*s, pz*s, ax, ay, az) for px, py, pz in corners_3d]
+        pts_2d = [(cx + px, cy - py) for px, py, pz in corners_rot]
+        dot = max(0.0, nx*lx + ny*ly + nz*lz)
+        shade = 0.58 + 0.42 * dot
+        face_col = (int(248 * shade), int(248 * shade), int(244 * shade))
+        pips_2d = []
+        for pu, pv in PIP_PATTERNS[f['val']]:
+            p3d = (ox + ux*pu + vx*pv, oy + uy*pu + vy*pv, oz + uz*pu + vz*pv)
+            px, py, pz = rotate_pt(p3d[0]*s, p3d[1]*s, p3d[2]*s, ax, ay, az)
+            pips_2d.append((cx + px, cy - py))
+        transformed_faces.append((nz, pts_2d, face_col, pips_2d))
+        
+    transformed_faces.sort(key=lambda item: item[0])
+    for nz, pts_2d, col, pips in transformed_faces:
+        pygame.draw.polygon(surface, col, pts_2d)
+        pygame.draw.polygon(surface, (65, 65, 65), pts_2d, 2)
+        for px, py in pips:
+            pygame.draw.circle(surface, (28, 28, 28), (int(px), int(py)), max(2, int(size * 0.055)))
+
+def draw_3d_pawn(screen, x, y, z, color, is_active=False, squash=0.0):
+    # 1. Board Contact Shadow
+    shadow_scale = 1.0 + (z / 70.0) * 0.4
+    shadow_alpha = max(25, int(130 * max(0.0, 1.0 - z / 100.0)))
+    sw = int(18 * shadow_scale)
+    sh = int(8 * shadow_scale)
+    
+    shadow_surf = pygame.Surface((sw * 2 + 4, sh * 2 + 4), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow_surf, (0, 0, 0, shadow_alpha), (2, 2, sw * 2, sh * 2))
+    screen.blit(shadow_surf, (x - sw - 2, y - sh // 2 - 2))
+
+    # 2. Elevated pawn position
+    py = y - z
+    
+    # Squash & stretch deformation when landing
+    scale_x = 1.0 + squash * 0.25
+    scale_y = 1.0 - squash * 0.2
+    
+    cr, cg, cb = color
+    c_light = (min(255, int(cr * 1.35)), min(255, int(cg * 1.35)), min(255, int(cb * 1.35)))
+    c_dark = (int(cr * 0.62), int(cg * 0.62), int(cb * 0.62))
+    c_darker = (int(cr * 0.42), int(cg * 0.42), int(cb * 0.42))
+    
+    # Pedestal base
+    bw = int(12 * scale_x)
+    bh = int(5 * scale_y)
+    pygame.draw.ellipse(screen, c_darker, (x - bw - 1, py - bh + 2, (bw + 1) * 2, bh * 2))
+    pygame.draw.ellipse(screen, color, (x - bw, py - bh, bw * 2, bh * 2))
+    pygame.draw.ellipse(screen, c_light, (x - bw + 2, py - bh + 1, (bw - 2) * 2, max(2, (bh - 1) * 2)))
+
+    # Conical body
+    body_pts = [
+        (x - int(8 * scale_x), py - 2),
+        (x + int(8 * scale_x), py - 2),
+        (x + int(4 * scale_x), py - int(18 * scale_y)),
+        (x - int(4 * scale_x), py - int(18 * scale_y))
+    ]
+    pygame.draw.polygon(screen, color, body_pts)
+    hl_pts = [
+        (x - int(8 * scale_x), py - 2),
+        (x - 2, py - 2),
+        (x - 1, py - int(18 * scale_y)),
+        (x - int(4 * scale_x), py - int(18 * scale_y))
+    ]
+    pygame.draw.polygon(screen, c_light, hl_pts)
+    sh_pts = [
+        (x + 2, py - 2),
+        (x + int(8 * scale_x), py - 2),
+        (x + int(4 * scale_x), py - int(18 * scale_y)),
+        (x + 1, py - int(18 * scale_y))
+    ]
+    pygame.draw.polygon(screen, c_dark, sh_pts)
+    pygame.draw.polygon(screen, (35, 35, 35), body_pts, 1)
+
+    # Collar ring
+    cw = int(6 * scale_x)
+    ch = max(2, int(4 * scale_y))
+    pygame.draw.ellipse(screen, c_dark, (x - cw, py - int(21 * scale_y), cw * 2, ch))
+    pygame.draw.ellipse(screen, c_light, (x - cw, py - int(22 * scale_y), cw * 2, ch))
+
+    # Spherical 3D head
+    hr = int(7 * scale_x)
+    hy = py - int(28 * scale_y)
+    pygame.draw.circle(screen, c_dark, (x + 1, hy + 1), hr)
+    pygame.draw.circle(screen, color, (x, hy), hr)
+    pygame.draw.circle(screen, c_light, (x - 2, hy - 2), max(2, hr - 2))
+    pygame.draw.circle(screen, (255, 255, 255), (x - 3, hy - 3), 2)
+    pygame.draw.circle(screen, (35, 35, 35), (x, hy), hr, 1)
+
+    # Floating golden halo / indicator for active player
+    if is_active and z <= 2:
+        bob = math.sin(pygame.time.get_ticks() * 0.007) * 3
+        ind_y = hy - hr - 8 + bob
+        pygame.draw.polygon(screen, C_HIGHLIGHT, [(x, ind_y + 4), (x - 5, ind_y - 4), (x + 5, ind_y - 4)])
+        pygame.draw.polygon(screen, (150, 110, 0), [(x, ind_y + 4), (x - 5, ind_y - 4), (x + 5, ind_y - 4)], 1)
+
+def draw_3d_house(surface, x, y, size=11):
+    c_wall = (46, 139, 87)
+    c_wall_dark = (30, 95, 60)
+    c_roof = (60, 185, 115)
+    c_roof_dark = (35, 115, 70)
+    w, h, d = size, int(size * 0.75), int(size * 0.5)
+    
+    sh_surf = pygame.Surface((w + d + 4, d * 2 + 4), pygame.SRCALPHA)
+    pygame.draw.ellipse(sh_surf, (0, 0, 0, 75), (0, 0, w + d + 2, d * 2))
+    surface.blit(sh_surf, (x - 1, y - d))
+    
+    pygame.draw.rect(surface, c_wall, (x, y - h, w, h))
+    side_pts = [(x + w, y - h), (x + w + d, y - h - int(d * 0.6)), (x + w + d, y - int(d * 0.6)), (x + w, y)]
+    pygame.draw.polygon(surface, c_wall_dark, side_pts)
+    roof_front = [(x - 1, y - h), (x + w // 2, y - h - d), (x + w + 1, y - h)]
+    pygame.draw.polygon(surface, c_roof, roof_front)
+    roof_side = [(x + w // 2, y - h - d), (x + w // 2 + d, y - h - d - int(d * 0.6)), (x + w + 1 + d, y - h - int(d * 0.6)), (x + w + 1, y - h)]
+    pygame.draw.polygon(surface, c_roof_dark, roof_side)
+
+def draw_3d_hotel(surface, x, y, size=16):
+    c_wall = (210, 45, 45)
+    c_wall_dark = (150, 30, 30)
+    c_roof = (235, 75, 75)
+    c_roof_dark = (175, 40, 40)
+    w, h, d = size, int(size * 1.1), int(size * 0.55)
+    
+    sh_surf = pygame.Surface((w + d + 6, d * 2 + 4), pygame.SRCALPHA)
+    pygame.draw.ellipse(sh_surf, (0, 0, 0, 80), (0, 0, w + d + 4, d * 2))
+    surface.blit(sh_surf, (x - 2, y - d))
+    
+    pygame.draw.rect(surface, c_wall, (x, y - h, w, h))
+    for wx in [x + 3, x + 9]:
+        for wy in [y - h + 3, y - h + 9]:
+            pygame.draw.rect(surface, (255, 235, 150), (wx, wy, 3, 3))
+    side_pts = [(x + w, y - h), (x + w + d, y - h - int(d * 0.6)), (x + w + d, y - int(d * 0.6)), (x + w, y)]
+    pygame.draw.polygon(surface, c_wall_dark, side_pts)
+    roof_front = [(x - 1, y - h), (x + w // 2, y - h - int(d * 0.9)), (x + w + 1, y - h)]
+    pygame.draw.polygon(surface, c_roof, roof_front)
+    roof_side = [(x + w // 2, y - h - int(d * 0.9)), (x + w // 2 + d, y - h - int(d * 0.9) - int(d * 0.6)), (x + w + 1 + d, y - h - int(d * 0.6)), (x + w + 1, y - h)]
+    pygame.draw.polygon(surface, c_roof_dark, roof_side)
+
+def get_space_center(i, player_idx=0, total_players=1):
+    cell_w = BOARD_SIZE / 11.0
+    if 0 <= i <= 10:
+        rx = BOARD_SIZE - cell_w - (i * cell_w)
+        ry = BOARD_SIZE - cell_w
+    elif 11 <= i <= 20:
+        rx = 0
+        ry = BOARD_SIZE - cell_w - ((i - 10) * cell_w)
+    elif 21 <= i <= 30:
+        rx = (i - 20) * cell_w
+        ry = 0
+    else:
+        rx = BOARD_SIZE - cell_w
+        ry = (i - 30) * cell_w
+        
+    cx = rx + cell_w / 2.0
+    cy = ry + cell_w / 2.0
+    
+    if total_players > 1:
+        off_x = (player_idx * 7) - (total_players * 3.5)
+        off_y = (player_idx % 2) * 5 - 2
+        return cx + off_x, cy + off_y
+    return cx, cy
+
+# --- 3D ANIMATION CONTROLLERS ---
+
+class Dice3DRollAnimation:
+    def __init__(self, d1, d2, on_complete=None):
+        self.d1 = d1
+        self.d2 = d2
+        self.on_complete = on_complete
+        self.frame = 0
+        self.total_roll_frames = 36
+        self.settle_pause_frames = 16
+        self.is_done = False
+        
+        self.pos1 = [CENTER_X - 55, CENTER_Y + 10]
+        self.z1 = 125.0
+        self.vz1 = -2.0
+        self.ang1 = [random.randint(0, 360), random.randint(0, 360), random.randint(0, 360)]
+        self.spin1 = [random.uniform(20, 32), random.uniform(16, 28), random.uniform(12, 22)]
+        self.target_ang1 = TARGET_DICE_ANGLES[d1]
+        
+        self.pos2 = [CENTER_X + 55, CENTER_Y - 10]
+        self.z2 = 140.0
+        self.vz2 = -1.5
+        self.ang2 = [random.randint(0, 360), random.randint(0, 360), random.randint(0, 360)]
+        self.spin2 = [random.uniform(-32, -18), random.uniform(18, 30), random.uniform(-25, -14)]
+        self.target_ang2 = TARGET_DICE_ANGLES[d2]
+
+    def update(self):
+        self.frame += 1
+        if self.frame <= self.total_roll_frames:
+            t = self.frame / float(self.total_roll_frames)
+            for d in [1, 2]:
+                z = self.z1 if d == 1 else self.z2
+                vz = self.vz1 if d == 1 else self.vz2
+                ang = self.ang1 if d == 1 else self.ang2
+                spin = self.spin1 if d == 1 else self.spin2
+                target_ang = self.target_ang1 if d == 1 else self.target_ang2
+                
+                vz -= 0.7
+                z += vz
+                if z <= 0:
+                    z = 0
+                    vz = -vz * 0.45
+                    spin[0] *= 0.6
+                    spin[1] *= 0.6
+                    spin[2] *= 0.6
+                
+                if t > 0.58:
+                    blend = (t - 0.58) / 0.42
+                    ease = blend * blend * (3 - 2 * blend)
+                    for k in range(3):
+                        diff = (target_ang[k] - ang[k] + 180) % 360 - 180
+                        ang[k] += diff * min(1.0, 0.25 + 0.75 * ease)
+                else:
+                    for k in range(3):
+                        ang[k] = (ang[k] + spin[k]) % 360
+                
+                if d == 1:
+                    self.z1, self.vz1 = z, vz
+                else:
+                    self.z2, self.vz2 = z, vz
+        else:
+            self.z1, self.z2 = 0, 0
+            self.ang1 = list(self.target_ang1)
+            self.ang2 = list(self.target_ang2)
+            if self.frame >= self.total_roll_frames + self.settle_pause_frames:
+                if not self.is_done:
+                    self.is_done = True
+                    if self.on_complete:
+                        self.on_complete()
+
+    def draw(self, screen):
+        draw_die_shadow(screen, self.pos1[0], self.pos1[1], self.z1, size=52)
+        draw_die_shadow(screen, self.pos2[0], self.pos2[1], self.z2, size=52)
+        draw_3d_die(screen, self.pos1[0], self.pos1[1] - self.z1, 52, self.ang1[0], self.ang1[1], self.ang1[2])
+        draw_3d_die(screen, self.pos2[0], self.pos2[1] - self.z2, 52, self.ang2[0], self.ang2[1], self.ang2[2])
+
+class PawnHop3DAnimation:
+    def __init__(self, player, total_steps, on_pass_start=None, on_complete=None):
+        self.player = player
+        self.total_steps = total_steps
+        self.steps_left = total_steps
+        self.on_pass_start = on_pass_start
+        self.on_complete = on_complete
+        
+        self.current_tile = player.position
+        self.next_tile = (self.current_tile + 1) % 40
+        self.hop_progress = 0.0
+        self.hop_speed = 0.12  # ~8 frames per hop
+        self.max_height = 36.0 # Max height in pixels
+        self.is_done = False
+        self.squash = 0.0
+
+    def update(self):
+        if self.is_done:
+            return
+            
+        if self.squash > 0:
+            self.squash -= 0.2
+            if self.squash <= 0 and self.steps_left <= 0:
+                self.is_done = True
+                if self.on_complete:
+                    self.on_complete()
+            return
+            
+        self.hop_progress += self.hop_speed
+        if self.hop_progress >= 1.0:
+            self.hop_progress = 0.0
+            self.current_tile = self.next_tile
+            self.player.position = self.current_tile
+            self.steps_left -= 1
+            
+            if self.current_tile == 0 and self.on_pass_start:
+                self.on_pass_start(self.player)
+                    
+            if self.steps_left > 0:
+                self.next_tile = (self.current_tile + 1) % 40
+            else:
+                self.squash = 1.0
+
+    def get_current_draw_pos(self):
+        x0, y0 = get_space_center(self.current_tile)
+        x1, y1 = get_space_center(self.next_tile)
+        t = self.hop_progress
+        gx = x0 + (x1 - x0) * t
+        gy = y0 + (y1 - y0) * t
+        z = self.max_height * math.sin(math.pi * t)
+        return gx, gy, z
+
 # --- UI CLASSES ---
 
 class Button:
@@ -237,13 +595,16 @@ class GameEngine:
         self.players = []
         self.curr_idx = 0
         self.board = self.setup_board()
-        self.state = "SETTINGS" # SETTINGS, LOBBY, IDLE, MOVING, ACTION, POPUP, GAME_OVER
+        self.state = "SETTINGS" # SETTINGS, LOBBY, IDLE, ROLLING_DICE, HOPPING, ACTION, POPUP, GAME_OVER
         self.log = ["Welcome to Monopoly!"]
         self.vacation_pot = 0
         self.dice = (1, 1)
         self.popup_timer = 0
         self.popup_msg = ""
         self.winner = None
+        self.dice_anim = None
+        self.hop_anim = None
+        self.pending_hop_steps = 0
         
         # Settings
         self.s_money = 1500
@@ -392,6 +753,9 @@ class GameEngine:
         return s
 
     def roll(self):
+        self.start_roll()
+
+    def start_roll(self):
         if not self.players:
             return
         p = self.players[self.curr_idx]
@@ -407,38 +771,45 @@ class GameEngine:
                 if self.check_bankruptcy(p):
                     return
 
-        d1 = random.randint(1,6)
-        d2 = random.randint(1,6)
+        d1 = random.randint(1, 6)
+        d2 = random.randint(1, 6)
         self.dice = (d1, d2)
         total = d1 + d2
-        self.log_msg(f"{p.name} rolled {total}")
+        self.log_msg(f"{p.name} rolling 3D dice...")
         
-        # Prison Logic
-        if p.in_prison:
-            if d1 == d2:
-                p.in_prison = False
-                self.log_msg("Doubles! Free!")
-            else:
-                p.prison_turns += 1
-                if p.prison_turns >= 3:
+        self.state = "ROLLING_DICE"
+        
+        def on_dice_settled():
+            self.log_msg(f"{p.name} rolled {total} ({d1} + {d2})")
+            # Prison Logic
+            if p.in_prison:
+                if d1 == d2:
                     p.in_prison = False
-                    p.money -= 25
-                    self.log_msg("Time served. Paid 25.")
-                    if self.check_bankruptcy(p):
-                        return
+                    self.log_msg("Doubles! Free from Prison!")
                 else:
-                    self.state = "IDLE"
-                    self.next_turn()
-                    return
+                    p.prison_turns += 1
+                    if p.prison_turns >= 3:
+                        p.in_prison = False
+                        p.money -= 25
+                        self.log_msg("Time served. Paid Rs 25.")
+                        if self.check_bankruptcy(p):
+                            return
+                    else:
+                        self.state = "IDLE"
+                        self.next_turn()
+                        return
 
-        # Move
-        old_pos = p.position
-        p.position = (p.position + total) % 40
-        if p.position < old_pos:
-            p.money += 250
-            self.log_msg("Passed Start! +250")
+            self.start_pawn_hop(p, total, on_complete=self.handle_land)
+            
+        self.dice_anim = Dice3DRollAnimation(d1, d2, on_complete=on_dice_settled)
 
-        self.handle_land()
+    def start_pawn_hop(self, player, steps, on_complete=None):
+        self.state = "HOPPING"
+        self.hop_anim = PawnHop3DAnimation(player, steps, on_pass_start=self._on_pass_start, on_complete=on_complete)
+
+    def _on_pass_start(self, player):
+        player.money += 250
+        self.log_msg(f"{player.name} passed Start! +Rs 250")
 
     def handle_land(self):
         if not self.players:
@@ -498,11 +869,9 @@ class GameEngine:
                 if self.check_bankruptcy(p):
                     return
             elif "Move" in card:
-                p.position = (p.position + 3) % 40
-                self.handle_land()
-                return
+                self.pending_hop_steps = 3
             self.state = "POPUP"
-            self.popup_timer = 60 # 2 seconds
+            self.popup_timer = 50 # frames
 
     def buy_prop(self):
         if not self.players:
@@ -527,24 +896,10 @@ class GameEngine:
 # --- DRAWING UTILS ---
 
 def draw_dice(screen, dice, x, y):
-    # Draw two dice faces
     for i, val in enumerate(dice):
-        dx = x + (i * 60)
-        pygame.draw.rect(screen, WHITE, (dx, y, 50, 50), border_radius=8)
-        pygame.draw.rect(screen, BLACK, (dx, y, 50, 50), 2, border_radius=8)
-        
-        # Dots
-        c = (dx+25, y+25)
-        pts = []
-        if val == 1: pts = [c]
-        elif val == 2: pts = [(dx+15, y+15), (dx+35, y+35)]
-        elif val == 3: pts = [(dx+15, y+15), c, (dx+35, y+35)]
-        elif val == 4: pts = [(dx+15, y+15), (dx+35, y+15), (dx+15, y+35), (dx+35, y+35)]
-        elif val == 5: pts = [(dx+15, y+15), (dx+35, y+15), c, (dx+15, y+35), (dx+35, y+35)]
-        elif val == 6: pts = [(dx+15, y+15), (dx+35, y+15), (dx+15, y+25), (dx+35, y+25), (dx+15, y+35), (dx+35, y+35)]
-        
-        for pt in pts:
-            pygame.draw.circle(screen, BLACK, pt, 4)
+        dx = x + (i * 70)
+        draw_die_shadow(screen, dx + 26, y + 26, 0, size=46)
+        draw_3d_die(screen, dx + 26, y + 26, 46, *TARGET_DICE_ANGLES[val])
 
 def draw_board(screen, engine, font, small_font):
     pygame.draw.rect(screen, C_BOARD, (0, 0, BOARD_SIZE, BOARD_SIZE))
@@ -630,14 +985,17 @@ def draw_board(screen, engine, font, small_font):
                 screen.blit(txt, (rx + (cell_w - txt.get_width())/2, ty))
                 ty += 12
 
-        # Owner Dot & Houses
+        # Owner Dot & 3D Houses / Hotel
         if s.owner:
             pygame.draw.circle(screen, s.owner.color, (rx+cell_w-10, ry+cell_w-10), 6)
             if s.houses > 0:
-                h_text = "HOTEL" if s.houses == 5 else f"{s.houses}H"
-                h_col = C_ERROR if s.houses == 5 else (34, 139, 34)
-                h_surf = small_font.render(h_text, True, h_col)
-                screen.blit(h_surf, (rx + 4, ry + cell_w - 18))
+                if s.houses == 5:
+                    draw_3d_hotel(screen, rx + int(cell_w/2) - 8, ry + int(cell_w) - 18, size=15)
+                else:
+                    spacing = 11
+                    start_hx = rx + int((cell_w - (s.houses * spacing - 2)) / 2)
+                    for h_idx in range(s.houses):
+                        draw_3d_house(screen, start_hx + h_idx * spacing, ry + int(cell_w) - 16, size=9)
         elif s.price > 0:
             p_surf = small_font.render(f"Rs {s.price}", True, (110, 110, 110))
             screen.blit(p_surf, (rx + (cell_w - p_surf.get_width()) / 2, ry + cell_w - 18))
@@ -880,12 +1238,11 @@ async def main():
                     for b in btns_game:
                         if b.rect.collidepoint(e.pos):
                             if b.action_id == "ROLL" and engine.state == "IDLE": 
-                                engine.state = "MOVING"
-                                engine.roll()
+                                engine.start_roll()
                             elif b.action_id == "BUY" and engine.state == "ACTION": 
                                 engine.buy_prop()
                             elif b.action_id == "END": 
-                                if engine.state != "MOVING": 
+                                if engine.state not in ["MOVING", "ROLLING_DICE", "HOPPING"]: 
                                     engine.state = "IDLE"
                                     engine.next_turn()
                             elif b.action_id == "LOAN" and engine.s_loans:
@@ -900,22 +1257,29 @@ async def main():
                             elif b.action_id == "BUILD" and engine.s_build:
                                 engine.build_house()
 
+        # --- UPDATE ANIMATIONS ---
+        if engine.state == "ROLLING_DICE" and engine.dice_anim:
+            engine.dice_anim.update()
+        elif engine.state == "HOPPING" and engine.hop_anim:
+            engine.hop_anim.update()
+
         # --- RENDER ---
         draw_board(screen, engine, font, small_font)
         
-        # Draw Players on Board
+        # Draw 3D Figurine Pawns on Board
         if engine.state not in ["SETTINGS", "LOBBY"]:
             for idx, p in enumerate(engine.players):
-                cell_w = BOARD_SIZE/11
-                i = p.position
-                if 0<=i<=10: cx, cy = BOARD_SIZE - cell_w - (i*cell_w) + cell_w/2, BOARD_SIZE - cell_w/2
-                elif 11<=i<=20: cx, cy = cell_w/2, BOARD_SIZE - cell_w - ((i-10)*cell_w) + cell_w/2
-                elif 21<=i<=30: cx, cy = (i-20)*cell_w + cell_w/2, cell_w/2
-                else: cx, cy = BOARD_SIZE - cell_w/2, (i-30)*cell_w + cell_w/2
-                
-                off = (idx*6) - 9
-                pygame.draw.circle(screen, BLACK, (int(cx+off), int(cy+off)), 10)
-                pygame.draw.circle(screen, p.color, (int(cx+off), int(cy+off)), 8)
+                is_turn = (engine.players and engine.players[engine.curr_idx] == p and engine.state in ["IDLE", "ACTION"])
+                if engine.state == "HOPPING" and engine.hop_anim and engine.hop_anim.player == p:
+                    gx, gy, z = engine.hop_anim.get_current_draw_pos()
+                    draw_3d_pawn(screen, int(gx), int(gy), z, p.color, is_active=True, squash=engine.hop_anim.squash)
+                else:
+                    gx, gy = get_space_center(p.position, idx, len(engine.players))
+                    draw_3d_pawn(screen, int(gx), int(gy), 0, p.color, is_active=is_turn)
+
+        # Draw 3D Tumbling Dice on Board Center
+        if engine.state == "ROLLING_DICE" and engine.dice_anim:
+            engine.dice_anim.draw(screen)
 
         draw_ui(screen, engine, font, small_font, [], selected_player_idx)
 
@@ -1003,7 +1367,12 @@ async def main():
             screen.blit(msg, (CENTER_X - msg.get_width()//2, CENTER_Y))
             
             if engine.popup_timer <= 0:
-                engine.state = "IDLE"
+                if engine.pending_hop_steps > 0:
+                    curr_p = engine.players[engine.curr_idx]
+                    engine.start_pawn_hop(curr_p, engine.pending_hop_steps, on_complete=engine.handle_land)
+                    engine.pending_hop_steps = 0
+                else:
+                    engine.state = "IDLE"
 
         pygame.display.flip()
         clock.tick(60)
